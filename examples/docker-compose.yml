@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: ivannco/caddy_xcaddy_cloudflare:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      # Mount your Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Persist Caddy data (certificates, etc.)
+      - caddy_data:/data
+      - caddy_config:/config
+      # Optional: Custom error pages
+      # - ./public:/var/www/html:ro
+    environment:
+      # Cloudflare credentials
+      # Option 1: API Token (Recommended)
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      # Option 2: Email + Global API Key (Less secure)
+      # - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
+      # - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
+    networks:
+      - web
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  web:
+    driver: bridge

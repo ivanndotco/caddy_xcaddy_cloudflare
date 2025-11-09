@@ -1,0 +1,116 @@
+# Advanced Caddyfile with security and performance features
+#
+# Production-ready configuration with:
+# - Security headers
+# - Rate limiting
+# - Compression
+# - Caching
+# - WebSocket support
+
+example.com {
+    tls {
+        dns cloudflare
+        # Use Let's Encrypt production
+        # ca https://acme-v02.api.letsencrypt.org/directory
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+        # Prevent clickjacking
+        X-Frame-Options "SAMEORIGIN"
+
+        # XSS Protection
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+
+        # CSP
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+
+        # Remove server header
+        -Server
+
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Enable compression
+    encode {
+        gzip 6
+        zstd
+    }
+
+    # Static files with caching
+    @static {
+        path *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2
+    }
+    handle @static {
+        header Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy backend:8080
+    }
+
+    # API endpoint with rate limiting
+    @api {
+        path /api/*
+    }
+    handle @api {
+        # Basic rate limiting (requires additional plugin or external tool)
+        reverse_proxy api-backend:3000 {
+            # Connection pooling
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 10s
+            }
+        }
+    }
+
+    # WebSocket support
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy ws-backend:8080
+    }
+
+    # Default handler
+    handle {
+        reverse_proxy backend:8080 {
+            # Load balancing across multiple backends
+            lb_policy round_robin
+            lb_try_duration 5s
+            lb_try_interval 250ms
+
+            # Passive health check
+            fail_duration 30s
+            max_fails 3
+            unhealthy_status 5xx
+        }
+    }
+
+    # Custom error pages
+    handle_errors {
+        @5xx expression {http.error.status_code} >= 500
+        handle @5xx {
+            respond "Server Error" 500
+        }
+
+        @4xx expression {http.error.status_code} >= 400
+        handle @4xx {
+            respond "Not Found" 404
+        }
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 100mb
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+        level INFO
+    }
+}

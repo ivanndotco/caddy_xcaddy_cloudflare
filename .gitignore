@@ -1,0 +1,23 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.env
+.env.local
+
+# Documentation - exclude all MD files except README.md
+*.md
+!README.md
+# Note: AUTOMATION_FLOW.md is intentionally excluded (internal documentation)

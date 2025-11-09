@@ -1,0 +1,69 @@
+# Caddyfile for monitoring stack
+#
+# Use this with docker-compose.monitoring.yml
+# Provides access to Prometheus and Grafana via subdomains
+
+{
+    email admin@example.com
+}
+
+# Grafana dashboard
+grafana.example.com {
+    tls {
+        dns cloudflare
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    reverse_proxy grafana:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    encode gzip
+}
+
+# Prometheus (restrict access)
+prometheus.example.com {
+    tls {
+        dns cloudflare
+    }
+
+    # Basic authentication (create hash with: caddy hash-password)
+    basicauth {
+        admin $2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG
+    }
+
+    reverse_proxy prometheus:9090
+
+    encode gzip
+}
+
+# Node exporter metrics (restrict access)
+metrics.example.com {
+    tls {
+        dns cloudflare
+    }
+
+    basicauth {
+        admin $2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG
+    }
+
+    handle /node-exporter* {
+        reverse_proxy node-exporter:9100
+    }
+
+    handle /caddy-exporter* {
+        reverse_proxy caddy-exporter:9180
+    }
+
+    encode gzip
+}

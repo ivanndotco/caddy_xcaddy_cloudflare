@@ -1,0 +1,18 @@
+# Simple Caddyfile with Cloudflare DNS challenge
+#
+# This is the most basic configuration for a single domain
+# using Cloudflare for DNS-01 ACME challenge.
+#
+# Requirements:
+# - Domain DNS is hosted on Cloudflare
+# - Cloudflare API Token with DNS edit permissions (see .env.example)
+
+example.com {
+    # Enable TLS with Cloudflare DNS challenge
+    tls {
+        dns cloudflare
+    }
+
+    # Simple response
+    respond "Hello from Caddy with Cloudflare!"
+}

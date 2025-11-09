@@ -1,0 +1,46 @@
+# Caddyfile for WordPress with Cloudflare
+#
+# Use this with docker-compose.wordpress.yml
+
+{
+    # Global options
+    email admin@example.com
+}
+
+example.com, www.example.com {
+    # Enable Cloudflare DNS challenge
+    tls {
+        dns cloudflare
+    }
+
+    # Redirect www to non-www
+    @www host www.example.com
+    redir @www https://example.com{uri} permanent
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Reverse proxy to WordPress
+    reverse_proxy wordpress:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Enable compression
+    encode gzip
+
+    # Logging
+    log {
+        output file /var/log/caddy/wordpress-access.log
+        format json
+    }
+}

@@ -1,0 +1,71 @@
+version: '3.8'
+
+# WordPress with Caddy and Cloudflare
+# Automatic HTTPS with Let's Encrypt via Cloudflare DNS challenge
+
+services:
+  caddy:
+    image: ivannco/caddy_xcaddy_cloudflare:latest
+    container_name: caddy-wordpress
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      # Cloudflare credentials
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    networks:
+      - wordpress
+    depends_on:
+      - wordpress
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: unless-stopped
+    environment:
+      - WORDPRESS_DB_HOST=mysql
+      - WORDPRESS_DB_USER=${DB_USER:-wordpress}
+      - WORDPRESS_DB_PASSWORD=${DB_PASSWORD}
+      - WORDPRESS_DB_NAME=${DB_NAME:-wordpress}
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - wordpress
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-wordpress
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=${DB_NAME:-wordpress}
+      - MYSQL_USER=${DB_USER:-wordpress}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - wordpress
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  caddy_data:
+  caddy_config:
+  wordpress_data:
+  mysql_data:
+
+networks:
+  wordpress:
+    driver: bridge

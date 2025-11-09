@@ -1,0 +1,104 @@
+name: Build and Push to Docker Hub
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+    # Allow manual triggers
+  repository_dispatch:
+    types: [version-update]
+
+env:
+  REGISTRY: docker.io
+  # Docker Hub image will be: DOCKERHUB_USERNAME/DOCKERHUB_REPO
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_REPO: ${{ vars.DOCKERHUB_REPO || 'caddy_xcaddy_cloudflare' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display configuration
+        run: |
+          echo "Docker Hub Configuration:"
+          echo "  Registry: ${{ env.REGISTRY }}"
+          echo "  Username: ${{ env.DOCKERHUB_USERNAME }}"
+          echo "  Repository: ${{ env.DOCKERHUB_REPO }}"
+          echo "  Full image: ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPO }}"
+
+      - name: Get versions from versions.json
+        id: versions
+        run: |
+          if [ -f versions.json ]; then
+            CADDY_VERSION=$(jq -r '.caddy' versions.json)
+            CLOUDFLARE_VERSION=$(jq -r '.cloudflare' versions.json)
+          else
+            CADDY_VERSION=$(curl -s https://api.github.com/repos/caddyserver/caddy/releases/latest | jq -r '.tag_name')
+            CLOUDFLARE_VERSION=$(curl -s https://api.github.com/repos/caddy-dns/cloudflare/tags | jq -r '.[0].name')
+          fi
+
+          # Remove 'v' prefix for clean versions (e.g., v2.10.2 -> 2.10.2)
+          CADDY_CLEAN=${CADDY_VERSION#v}
+          CLOUDFLARE_CLEAN=${CLOUDFLARE_VERSION#v}
+
+          echo "caddy=$CADDY_VERSION" >> $GITHUB_OUTPUT
+          echo "caddy_clean=$CADDY_CLEAN" >> $GITHUB_OUTPUT
+          echo "cloudflare=$CLOUDFLARE_VERSION" >> $GITHUB_OUTPUT
+          echo "cloudflare_clean=$CLOUDFLARE_CLEAN" >> $GITHUB_OUTPUT
+
+          echo "Building with:"
+          echo "  Caddy: $CADDY_VERSION (tag: $CADDY_CLEAN)"
+          echo "  Cloudflare: $CLOUDFLARE_VERSION (tag: $CLOUDFLARE_CLEAN)"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPO }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.versions.outputs.caddy_clean }},enable={{is_default_branch}}
+            type=raw,value=${{ steps.versions.outputs.caddy }},enable={{is_default_branch}}
+            type=raw,value=caddy-${{ steps.versions.outputs.caddy }},enable={{is_default_branch}}
+            type=raw,value=caddy-${{ steps.versions.outputs.caddy_clean }}-cloudflare-${{ steps.versions.outputs.cloudflare_clean }},enable={{is_default_branch}}
+            type=raw,value=c${{ steps.versions.outputs.caddy_clean }}-cf${{ steps.versions.outputs.cloudflare_clean }},enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            CADDY_VERSION=${{ steps.versions.outputs.caddy_clean }}
+            CLOUDFLARE_VERSION=${{ steps.versions.outputs.cloudflare }}

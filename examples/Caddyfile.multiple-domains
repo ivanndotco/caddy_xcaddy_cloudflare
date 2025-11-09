@@ -1,0 +1,57 @@
+# Caddyfile with multiple domains and subdomains
+#
+# Demonstrates handling multiple domains, wildcards,
+# and different backend services.
+
+# Main site
+example.com, www.example.com {
+    tls {
+        dns cloudflare
+    }
+
+    # Redirect www to non-www
+    @www host www.example.com
+    redir @www https://example.com{uri} permanent
+
+    # Serve static files or proxy
+    reverse_proxy frontend:80
+}
+
+# Wildcard subdomain
+*.example.com {
+    tls {
+        dns cloudflare
+    }
+
+    # Route based on subdomain
+    @blog host blog.example.com
+    handle @blog {
+        reverse_proxy blog:8080
+    }
+
+    @shop host shop.example.com
+    handle @shop {
+        reverse_proxy shop:3000
+    }
+
+    @docs host docs.example.com
+    handle @docs {
+        reverse_proxy docs:4000
+    }
+
+    # Default handler for other subdomains
+    handle {
+        respond "Subdomain not configured" 404
+    }
+}
+
+# Different domain entirely
+another-domain.com {
+    tls {
+        dns cloudflare
+    }
+
+    root * /var/www/html
+    file_server
+    encode gzip
+}

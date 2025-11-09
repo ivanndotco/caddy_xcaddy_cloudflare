@@ -1,0 +1,104 @@
+name: Check for Caddy and Plugin Updates
+
+on:
+  schedule:
+    # Check for updates once per week (every Monday at 2 AM UTC)
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest versions from GitHub
+        id: latest
+        run: |
+          # Get latest Caddy release from GitHub
+          CADDY_VERSION=$(curl -s https://api.github.com/repos/caddyserver/caddy/releases/latest | jq -r '.tag_name')
+          echo "caddy=$CADDY_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest Caddy version: $CADDY_VERSION"
+
+          # Get latest Cloudflare plugin version from GitHub tags
+          CLOUDFLARE_VERSION=$(curl -s https://api.github.com/repos/caddy-dns/cloudflare/tags | jq -r '.[0].name')
+          echo "cloudflare=$CLOUDFLARE_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest Cloudflare plugin version: $CLOUDFLARE_VERSION"
+
+      - name: Get current versions from file
+        id: current
+        run: |
+          if [ -f versions.json ]; then
+            CURRENT_CADDY=$(jq -r '.caddy' versions.json)
+            CURRENT_CLOUDFLARE=$(jq -r '.cloudflare' versions.json)
+          else
+            CURRENT_CADDY="none"
+            CURRENT_CLOUDFLARE="none"
+          fi
+          echo "caddy=$CURRENT_CADDY" >> $GITHUB_OUTPUT
+          echo "cloudflare=$CURRENT_CLOUDFLARE" >> $GITHUB_OUTPUT
+          echo "Current Caddy version: $CURRENT_CADDY"
+          echo "Current Cloudflare version: $CURRENT_CLOUDFLARE"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          echo "Version Comparison:"
+          echo "  Caddy:      ${{ steps.current.outputs.caddy }} → ${{ steps.latest.outputs.caddy }}"
+          echo "  Cloudflare: ${{ steps.current.outputs.cloudflare }} → ${{ steps.latest.outputs.cloudflare }}"
+          echo ""
+
+          CHANGED=()
+          if [ "${{ steps.latest.outputs.caddy }}" != "${{ steps.current.outputs.caddy }}" ]; then
+            CHANGED+=("caddy")
+            echo "✅ Caddy version changed: ${{ steps.current.outputs.caddy }} → ${{ steps.latest.outputs.caddy }}"
+          fi
+
+          if [ "${{ steps.latest.outputs.cloudflare }}" != "${{ steps.current.outputs.cloudflare }}" ]; then
+            CHANGED+=("cloudflare")
+            echo "✅ Cloudflare plugin version changed: ${{ steps.current.outputs.cloudflare }} → ${{ steps.latest.outputs.cloudflare }}"
+          fi
+
+          if [ ${#CHANGED[@]} -gt 0 ]; then
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            # Convert array to JSON array format
+            CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -s .)
+            echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
+            echo ""
+            echo "Will update versions.json and trigger build"
+          else
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+            echo "changed=[]" >> $GITHUB_OUTPUT
+            echo "ℹ️  All versions are up to date"
+          fi
+
+      - name: Update versions file
+        if: steps.compare.outputs.update_needed == 'true'
+        run: |
+          # Create updated versions.json with current timestamp
+          cat > versions.json << EOF
+          {
+            "caddy": "${{ steps.latest.outputs.caddy }}",
+            "cloudflare": "${{ steps.latest.outputs.cloudflare }}",
+            "last_checked": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "changed": ${{ steps.compare.outputs.changed }}
+          }
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add versions.json
+          git commit -m "Update versions: Caddy ${{ steps.latest.outputs.caddy }}, Cloudflare ${{ steps.latest.outputs.cloudflare }}"
+          git push
+
+      - name: Trigger Docker build
+        if: steps.compare.outputs.update_needed == 'true'
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: version-update
+          client-payload: '{"caddy": "${{ steps.latest.outputs.caddy }}", "cloudflare": "${{ steps.latest.outputs.cloudflare }}", "changed": ${{ steps.compare.outputs.changed }}}'

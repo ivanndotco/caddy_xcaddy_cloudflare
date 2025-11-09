@@ -1,0 +1,99 @@
+version: '3.8'
+
+# Full stack example with Caddy as reverse proxy
+# Includes: Frontend, Backend API, Database, and Caddy
+
+services:
+  # Caddy reverse proxy with Cloudflare
+  caddy:
+    image: ivannco/caddy_xcaddy_cloudflare:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./logs:/var/log/caddy
+    environment:
+      # Cloudflare credentials
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    networks:
+      - web
+    depends_on:
+      - frontend
+      - backend
+
+  # Frontend application
+  frontend:
+    image: nginx:alpine
+    container_name: frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    networks:
+      - web
+
+  # Backend API
+  backend:
+    image: node:18-alpine
+    container_name: backend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: npm start
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://dbuser:dbpass@postgres:5432/mydb
+    networks:
+      - web
+      - backend
+    depends_on:
+      - postgres
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=dbpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+
+networks:
+  web:
+    driver: bridge
+  backend:
+    driver: bridge
