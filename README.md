@@ -339,10 +339,13 @@ This repository uses a fully automated version tracking system:
 
 1. **Weekly Checks**: GitHub Actions checks for new Caddy and Cloudflare plugin releases every Monday at 2 AM UTC
 2. **Version Detection**: Compares current versions (stored in `versions.json`) with latest GitHub releases
-3. **Automatic Updates**: If either component has a new version:
-   - Updates `versions.json` automatically
-   - Triggers a new Docker build
-   - Pushes images with updated version tags
+3. **Automatic Updates**:
+   - Always updates `versions.json` with current timestamp (keeps GitHub Actions active)
+   - If either component has a new version:
+     - Updates version numbers in `versions.json`
+     - Triggers a new Docker build
+     - Pushes images with updated version tags
+   - If no updates: commits timestamp update only (prevents workflow suspension)
 4. **Zero Manual Intervention**: Everything happens automatically - no repo updates needed!
 
 ### Version File (`versions.json`)

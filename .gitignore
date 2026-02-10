@@ -20,4 +20,4 @@ Thumbs.db
 # Documentation - exclude all MD files except README.md
 *.md
 !README.md
-# Note: AUTOMATION_FLOW.md is intentionally excluded (internal documentation)
+# Note: CLAUDE.md and other internal docs are intentionally excluded

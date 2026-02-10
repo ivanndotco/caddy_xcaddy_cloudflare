@@ -77,9 +77,9 @@ jobs:
           fi
 
       - name: Update versions file
-        if: steps.compare.outputs.update_needed == 'true'
         run: |
-          # Create updated versions.json with current timestamp
+          # Always update versions.json with current timestamp to keep repo active
+          # This prevents GitHub Actions from being disabled due to inactivity
           cat > versions.json << EOF
           {
             "caddy": "${{ steps.latest.outputs.caddy }}",
@@ -92,7 +92,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add versions.json
-          git commit -m "Update versions: Caddy ${{ steps.latest.outputs.caddy }}, Cloudflare ${{ steps.latest.outputs.cloudflare }}"
+
+          # Use different commit message based on whether versions changed
+          if [ "${{ steps.compare.outputs.update_needed }}" == "true" ]; then
+            git commit -m "Update versions: Caddy ${{ steps.latest.outputs.caddy }}, Cloudflare ${{ steps.latest.outputs.cloudflare }}"
+          else
+            git commit -m "chore: update last checked timestamp"
+          fi
+
           git push
 
       - name: Trigger Docker build
