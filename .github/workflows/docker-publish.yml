@@ -19,7 +19,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -99,3 +99,29 @@ jobs:
           build-args: |
             CADDY_VERSION=${{ steps.versions.outputs.caddy_clean }}
             CLOUDFLARE_VERSION=${{ steps.versions.outputs.cloudflare }}
+
+      - name: Create GitHub Release
+        if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: caddy-${{ steps.versions.outputs.caddy }}-cloudflare-${{ steps.versions.outputs.cloudflare }}
+          name: "Caddy ${{ steps.versions.outputs.caddy }} + Cloudflare ${{ steps.versions.outputs.cloudflare }}"
+          make_latest: true
+          body: |
+            ## Caddy with Cloudflare DNS Plugin
+
+            | Component | Version |
+            |-----------|---------|
+            | Caddy | `${{ steps.versions.outputs.caddy }}` |
+            | caddy-dns/cloudflare | `${{ steps.versions.outputs.cloudflare }}` |
+
+            ## Pull the image
+
+            ```bash
+            # Latest
+            docker pull ghcr.io/${{ github.repository }}:latest
+
+            # Specific versions
+            docker pull ghcr.io/${{ github.repository }}:caddy-${{ steps.versions.outputs.caddy_clean }}-cloudflare-${{ steps.versions.outputs.cloudflare_clean }}
+            docker pull ghcr.io/${{ github.repository }}:c${{ steps.versions.outputs.caddy_clean }}-cf${{ steps.versions.outputs.cloudflare_clean }}
+            ```
