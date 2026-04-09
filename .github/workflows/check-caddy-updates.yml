@@ -66,7 +66,7 @@ jobs:
           if [ ${#CHANGED[@]} -gt 0 ]; then
             echo "update_needed=true" >> $GITHUB_OUTPUT
             # Convert array to JSON array format
-            CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -s .)
+            CHANGED_JSON=$(printf '%s\n' "${CHANGED[@]}" | jq -R . | jq -sc .)
             echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
             echo ""
             echo "Will update versions.json and trigger build"
