@@ -34,7 +34,7 @@ Docker image with Caddy web server and Cloudflare DNS plugin for automatic HTTPS
 ### Pull the Image
 
 ```bash
-docker pull ivannco/caddy_xcaddy_cloudflare:latest
+docker pull ghcr.io/ivanndotco/caddy_xcaddy_cloudflare:latest
 ```
 
 ### Run with Docker
@@ -47,7 +47,7 @@ docker run -d \
   -e CLOUDFLARE_API_TOKEN=your_api_token \
   -v $PWD/Caddyfile:/etc/caddy/Caddyfile \
   -v caddy_data:/data \
-  ivannco/caddy_xcaddy_cloudflare:latest
+  ghcr.io/ivanndotco/caddy_xcaddy_cloudflare:latest
 ```
 
 ### Run with Docker Compose
@@ -219,7 +219,7 @@ version: '3.8'
 
 services:
   caddy:
-    image: ivannco/caddy_xcaddy_cloudflare:latest
+    image: ghcr.io/ivanndotco/caddy_xcaddy_cloudflare:latest
     restart: unless-stopped
     ports:
       - "80:80"
