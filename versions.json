@@ -1,6 +1,6 @@
 {
-  "caddy": "v2.11.4",
+  "caddy": "v2.11.7",
   "cloudflare": "v0.2.4",
-  "last_checked": "2026-09-28T08:35:00Z",
-  "changed": []
+  "last_checked": "2026-10-05T08:49:23Z",
+  "changed": ["caddy"]
 }
